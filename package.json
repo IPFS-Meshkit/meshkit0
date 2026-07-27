@@ -89,6 +89,8 @@
     "access": "public"
   },
   "dependencies": {
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "aws4fetch": "^1.0.20",
     "kubo-rpc-client": "^7.1.0",
     "multiformats": "^14.0.0"
