@@ -36,7 +36,7 @@ export default defineConfig([
     },
     dts: sharedDts,
     noExternal: [/^@ipfs-meshkit\//],
-    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats'],
+    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats', '@noble/ciphers', '@noble/hashes'],
   },
   // Browser build — only @ipfs-meshkit/core; no Node.js built-ins.
   {
@@ -51,6 +51,6 @@ export default defineConfig([
     },
     dts: sharedDts,
     noExternal: [/^@ipfs-meshkit\//],
-    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats'],
+    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats', '@noble/ciphers', '@noble/hashes'],
   },
 ]);

@@ -20,3 +20,6 @@ export type { S3StorageConfig, FilOneConfig } from './create-filone-client.js';
 
 export { IPNS_TTL_DEFAULT, IPNS_TTL_FAST } from './ipns/constants.js';
 export { extractCidFromPath, toIpfsPath, toIpnsPath } from './ipns/paths.js';
+
+export { encrypt, decrypt, isEncryptedPayload, DEFAULT_ITERATIONS } from './crypto.js';
+export type { EncryptOptions } from './crypto.js';
