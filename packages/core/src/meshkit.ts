@@ -11,7 +11,9 @@ import type {
   Meshkit as MeshkitFacade,
   MeshkitClient,
   MeshkitInitOptions,
+  RetrieveOptions,
   StoredObject,
+  UploadOptions,
 } from './types.js';
 
 export class Meshkit implements MeshkitFacade {
@@ -50,12 +52,12 @@ export class Meshkit implements MeshkitFacade {
     return new Meshkit(healthy.clients, healthy.urls);
   }
 
-  upload(data: Uint8Array): Promise<string> {
-    return withFailover(this.clients, (client) => client.upload(data));
+  upload(data: Uint8Array, options?: UploadOptions): Promise<string> {
+    return withFailover(this.clients, (client) => client.upload(data, options));
   }
 
-  retrieve(cid: string): Promise<Uint8Array> {
-    return withFailover(this.clients, (client) => client.retrieve(cid));
+  retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array> {
+    return withFailover(this.clients, (client) => client.retrieve(cid, options));
   }
 
   pin(cid: string): Promise<void> {
