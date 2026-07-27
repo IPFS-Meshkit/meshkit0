@@ -94,10 +94,14 @@ function passwordToBytes(password: string): Uint8Array {
 /**
  * Generate cryptographically secure random bytes using the platform CSPRNG.
  * Works identically on Node.js ≥ 20, browsers, and React Native.
+ * Fills in 65,536-byte chunks to respect the Web Crypto API quota per call.
  */
 function secureRandom(byteLength: number): Uint8Array {
   const buf = new Uint8Array(byteLength);
-  globalThis.crypto.getRandomValues(buf);
+  const CHUNK = 65_536;
+  for (let offset = 0; offset < byteLength; offset += CHUNK) {
+    globalThis.crypto.getRandomValues(buf.subarray(offset, offset + CHUNK));
+  }
   return buf;
 }
 
