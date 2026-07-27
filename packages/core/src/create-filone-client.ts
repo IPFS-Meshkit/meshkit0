@@ -2,8 +2,9 @@ import { AwsClient } from 'aws4fetch';
 import { CID } from 'multiformats/cid';
 import { sha256 } from 'multiformats/hashes/sha2';
 import * as raw from 'multiformats/codecs/raw';
+import { decrypt, encrypt, isEncryptedPayload } from './crypto.js';
 import { MeshkitError } from './types.js';
-import type { MeshkitClient, StoredObject } from './types.js';
+import type { MeshkitClient, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
 
 export interface S3StorageConfig {
   accessKeyId: string;
@@ -110,9 +111,9 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
       // Parse <Contents> entries from S3 ListObjectsV2 XML response
       const contentsMatches = xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g);
       for (const match of contentsMatches) {
-        const block = match[1];
+        const block = match[1] ?? '';
         const key = block.match(/<Key>(.*?)<\/Key>/)?.[1];
-        const sizeStr = block.match(/<Size>(.*?)<\/Size>/)?.[1];
+        const sizeStr = block.match(/<Size>(.*?)<\/Size>/)?.[1] ?? '0';
         const lastModStr = block.match(/<LastModified>(.*?)<\/LastModified>/)?.[1];
 
         if (!key) continue;
@@ -121,7 +122,7 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
 
         results.push({
           key,
-          size: sizeStr ? parseInt(sizeStr, 10) : 0,
+          size: parseInt(sizeStr, 10),
           lastModified: lastModStr ? new Date(lastModStr) : undefined,
         });
       }
@@ -135,12 +136,19 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
   }
 
   return {
-    async upload(data: Uint8Array): Promise<string> {
-      const cid = await computeCid(data);
+    async upload(data: Uint8Array, options?: UploadOptions): Promise<string> {
+      // Encrypt before computing the CID if requested.
+      // The CID is derived from the encrypted bytes — different passwords on
+      // the same plaintext will produce different CIDs (by design).
+      const payload = options?.encrypt
+        ? await encrypt(data, options.encrypt)
+        : data;
+
+      const cid = await computeCid(payload);
       const res = await aws.fetch(objectUrl(cid), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/octet-stream' },
-        body: data.buffer as BodyInit,
+        body: payload.buffer as BodyInit,
       });
 
       if (!res.ok) {
@@ -153,7 +161,7 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
       return cid;
     },
 
-    async retrieve(cid: string): Promise<Uint8Array> {
+    async retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array> {
       const res = await aws.fetch(objectUrl(cid), { method: 'GET' });
 
       if (!res.ok) {
@@ -163,7 +171,14 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
         );
       }
 
-      return new Uint8Array(await res.arrayBuffer());
+      const raw = new Uint8Array(await res.arrayBuffer());
+
+      // Decrypt transparently if a password was supplied and the payload looks
+      // like an EMSH encrypted blob.
+      if (options?.password && isEncryptedPayload(raw)) {
+        return decrypt(raw, options.password);
+      }
+      return raw;
     },
 
     async pin(_cid: string): Promise<void> {},
