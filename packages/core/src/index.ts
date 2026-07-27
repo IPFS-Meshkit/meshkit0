@@ -3,6 +3,8 @@ export type {
   MeshkitConfig,
   MeshkitInitOptions,
   StoredObject,
+  UploadOptions,
+  RetrieveOptions,
   IpnsDuration,
   IpnsKey,
   IpnsKeyGenOptions,

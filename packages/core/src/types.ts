@@ -5,6 +5,7 @@ import type {
   IpnsPublishResult,
   IpnsResolveOptions,
 } from './ipns/types.js';
+import type { EncryptOptions } from './crypto.js';
 
 export type {
   IpnsDuration,
@@ -15,6 +16,8 @@ export type {
   IpnsResolveOptions,
 } from './ipns/types.js';
 
+export type { EncryptOptions } from './crypto.js';
+
 export class MeshkitError extends Error {
   /** The individual errors collected from each node that was tried. */
   readonly causes: Error[];
@@ -24,6 +27,46 @@ export class MeshkitError extends Error {
     this.name = 'MeshkitError';
     this.causes = causes;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Encryption option types
+// ---------------------------------------------------------------------------
+
+/**
+ * Options controlling content encryption on upload.
+ *
+ * When provided, the raw bytes are encrypted with AES-256-GCM (key derived
+ * via PBKDF2-SHA256) before being sent to the IPFS/S3 backend.  The CID is
+ * therefore computed from the *encrypted* bytes, not the plaintext.
+ *
+ * **Important:** the CID is the only handle to your encrypted file.
+ * It cannot be recomputed from the plaintext — store it alongside your
+ * application metadata.
+ */
+export interface UploadOptions {
+  /**
+   * If set, content is encrypted with AES-256-GCM before uploading.
+   * See {@link EncryptOptions} for details on the password and iteration count.
+   */
+  encrypt?: EncryptOptions;
+}
+
+/**
+ * Options controlling content decryption on retrieve.
+ *
+ * If the retrieved bytes are an EMSH encrypted payload and a `password` is
+ * provided, the payload is transparently decrypted before being returned.
+ * If no password is provided, the raw (possibly encrypted) bytes are returned.
+ */
+export interface RetrieveOptions {
+  /**
+   * Password to decrypt the retrieved bytes.
+   * Only used when the content is an EMSH encrypted payload
+   * (as produced by an upload with `encrypt` options).
+   * If the content is not encrypted this field is silently ignored.
+   */
+  password?: string;
 }
 
 export interface MeshkitConfig {
@@ -49,11 +92,19 @@ export interface StoredObject {
 }
 
 export interface MeshkitClient {
-  /** Upload raw bytes to the connected IPFS node. Returns the CID string. */
-  upload(data: Uint8Array): Promise<string>;
+  /**
+   * Upload raw bytes to the connected IPFS node. Returns the CID string.
+   * If `options.encrypt` is provided the bytes are encrypted before upload;
+   * the CID identifies the encrypted blob, not the original plaintext.
+   */
+  upload(data: Uint8Array, options?: UploadOptions): Promise<string>;
 
-  /** Retrieve file contents from the connected IPFS node by CID. */
-  retrieve(cid: string): Promise<Uint8Array>;
+  /**
+   * Retrieve file contents from the connected IPFS node by CID.
+   * If `options.password` is provided and the content is an EMSH encrypted
+   * payload it is automatically decrypted before being returned.
+   */
+  retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array>;
 
   /** Pin a CID on the connected IPFS node so it is not garbage-collected. */
   pin(cid: string): Promise<void>;
@@ -117,11 +168,18 @@ export interface MeshkitInitOptions {
 }
 
 export interface Meshkit {
-  /** Upload raw bytes, trying each healthy node in priority order. */
-  upload(data: Uint8Array): Promise<string>;
+  /**
+   * Upload raw bytes, trying each healthy node in priority order.
+   * If `options.encrypt` is provided the bytes are encrypted before upload.
+   */
+  upload(data: Uint8Array, options?: UploadOptions): Promise<string>;
 
-  /** Retrieve file contents by CID, trying each healthy node in priority order. */
-  retrieve(cid: string): Promise<Uint8Array>;
+  /**
+   * Retrieve file contents by CID, trying each healthy node in priority order.
+   * If `options.password` is provided and the content is encrypted it will be
+   * transparently decrypted before being returned.
+   */
+  retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array>;
 
   /** Pin a CID, trying each healthy node in priority order. */
   pin(cid: string): Promise<void>;
