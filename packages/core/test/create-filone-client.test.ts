@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFilOneClient, createS3Client } from '../src/create-filone-client.js';
 import { createMeshkitClient } from '../src/create-client.js';
+import { isEncryptedPayload } from '../src/crypto.js';
 import { MeshkitError } from '../src/types.js';
 
 const CONFIG = {
@@ -77,6 +78,36 @@ describe('createS3Client / createFilOneClient', () => {
       const cid2 = await client.upload(new TextEncoder().encode('invoice-002'));
       expect(cid1).not.toBe(cid2);
     });
+
+    // -------------------------------------------------------------------------
+    // Encrypted upload
+    // -------------------------------------------------------------------------
+
+    it('encrypted upload sends EMSH blob (not plaintext) to S3', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(makeResponse(200));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const data = new TextEncoder().encode('secret invoice');
+      const client = createFilOneClient(CONFIG);
+      await client.upload(data, { encrypt: { password: 'pass', iterations: 1 } });
+
+      // The body sent to S3 must be an encrypted EMSH payload
+      const req = fetchMock.mock.calls[0][0] as Request;
+      const body = new Uint8Array(await req.arrayBuffer());
+      expect(isEncryptedPayload(body)).toBe(true);
+      expect(body).not.toEqual(data);
+    });
+
+    it('two encrypted uploads of the same plaintext produce different CIDs', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse(200)));
+      const client = createFilOneClient(CONFIG);
+      const data = new TextEncoder().encode('same secret');
+      const opts = { encrypt: { password: 'pass', iterations: 1 } };
+      const cid1 = await client.upload(data, opts);
+      const cid2 = await client.upload(data, opts);
+      // Different random salts → different ciphertexts → different CIDs
+      expect(cid1).not.toBe(cid2);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -107,6 +138,56 @@ describe('createS3Client / createFilOneClient', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse(404, 'NoSuchKey')));
       const client = createFilOneClient(CONFIG);
       await expect(client.retrieve('bafkreimissing')).rejects.toBeInstanceOf(MeshkitError);
+    });
+
+    // -------------------------------------------------------------------------
+    // Encrypted retrieve
+    // -------------------------------------------------------------------------
+
+    it('retrieve with correct password decrypts encrypted S3 content', async () => {
+      const { encrypt } = await import('../src/crypto.js');
+      const plaintext = new TextEncoder().encode('secret s3 payload');
+      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1 });
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));
+      const client = createFilOneClient(CONFIG);
+      const result = await client.retrieve('bafkreiencrypted', { password: 'pass' });
+      expect(result).toEqual(plaintext);
+    });
+
+    it('retrieve without password returns raw encrypted bytes', async () => {
+      const { encrypt } = await import('../src/crypto.js');
+      const plaintext = new TextEncoder().encode('secret s3 payload');
+      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1 });
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));
+      const client = createFilOneClient(CONFIG);
+      const raw = await client.retrieve('bafkreiencrypted');
+      expect(raw).toEqual(encrypted);
+      expect(isEncryptedPayload(raw)).toBe(true);
+    });
+
+    it('retrieve with wrong password throws MeshkitError', async () => {
+      const { encrypt } = await import('../src/crypto.js');
+      const encrypted = await encrypt(
+        new TextEncoder().encode('secret'),
+        { password: 'correct', iterations: 1 },
+      );
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));
+      const client = createFilOneClient(CONFIG);
+      await expect(
+        client.retrieve('bafkreiencrypted', { password: 'wrong' }),
+      ).rejects.toBeInstanceOf(MeshkitError);
+    });
+
+    it('retrieve with password on unencrypted content returns content unchanged', async () => {
+      const original = new TextEncoder().encode('plain unencrypted content');
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(original.buffer)));
+      const client = createFilOneClient(CONFIG);
+      const result = await client.retrieve('bafkreiplain', { password: 'pass' });
+      // isEncryptedPayload returns false → content returned as-is
+      expect(result).toEqual(original);
     });
   });
 

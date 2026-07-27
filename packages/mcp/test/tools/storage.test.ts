@@ -32,8 +32,10 @@ describe('storage tool handlers', () => {
     const ctx = createMockContext();
     const result = await handleUpload(ctx, { content: 'hello' });
 
+    // No password → called with (bytes, undefined)
     expect(ctx.meshkit.upload).toHaveBeenCalledWith(
       new TextEncoder().encode('hello'),
+      undefined,
     );
     expect(result.content[0]?.text).toContain('QmUpload');
   });
@@ -42,9 +44,51 @@ describe('storage tool handlers', () => {
     const ctx = createMockContext();
     const result = await handleRetrieve(ctx, { cid: 'QmTest' });
 
-    expect(ctx.meshkit.retrieve).toHaveBeenCalledWith('QmTest');
+    // No password → called with (cid, undefined)
+    expect(ctx.meshkit.retrieve).toHaveBeenCalledWith('QmTest', undefined);
     expect(result.content[0]?.text).toContain('"encoding": "text"');
     expect(result.content[0]?.text).toContain('hello');
+  });
+
+  it('handleUpload with password passes encrypt options', async () => {
+    const ctx = createMockContext();
+    await handleUpload(ctx, { content: 'secret', password: 'mypass' });
+
+    expect(ctx.meshkit.upload).toHaveBeenCalledWith(
+      new TextEncoder().encode('secret'),
+      { encrypt: { password: 'mypass' } },
+    );
+  });
+
+  it('handleUpload with password and custom iterations passes both', async () => {
+    const ctx = createMockContext();
+    await handleUpload(ctx, { content: 'secret', password: 'mypass', pbkdf2Iterations: 50_000 });
+
+    expect(ctx.meshkit.upload).toHaveBeenCalledWith(
+      new TextEncoder().encode('secret'),
+      { encrypt: { password: 'mypass', iterations: 50_000 } },
+    );
+  });
+
+  it('handleRetrieve with password passes decrypt options', async () => {
+    const ctx = createMockContext();
+    await handleRetrieve(ctx, { cid: 'QmEnc', password: 'mypass' });
+
+    expect(ctx.meshkit.retrieve).toHaveBeenCalledWith('QmEnc', { password: 'mypass' });
+  });
+
+  it('handleUpload result includes encrypted: true when password is given', async () => {
+    const ctx = createMockContext();
+    const result = await handleUpload(ctx, { content: 'secret', password: 'mypass' });
+
+    expect(result.content[0]?.text).toContain('"encrypted": true');
+  });
+
+  it('handleUpload result includes encrypted: false when no password is given', async () => {
+    const ctx = createMockContext();
+    const result = await handleUpload(ctx, { content: 'plain' });
+
+    expect(result.content[0]?.text).toContain('"encrypted": false');
   });
 
   it('handlePin pins a CID', async () => {
@@ -82,6 +126,7 @@ describe('storage tool handlers', () => {
 
     expect(ctx.meshkit.upload).toHaveBeenCalledWith(
       new TextEncoder().encode('hello'),
+      undefined,
     );
   });
 
