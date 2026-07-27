@@ -1,4 +1,5 @@
 import { create } from 'kubo-rpc-client';
+import { decrypt, encrypt, isEncryptedPayload } from './crypto.js';
 import {
   extractCidFromPath,
   toIpfsPath,
@@ -9,7 +10,7 @@ import type {
   IpnsPublishOptions,
   IpnsResolveOptions,
 } from './ipns/types.js';
-import type { MeshkitClient, MeshkitConfig, StoredObject } from './types.js';
+import type { MeshkitClient, MeshkitConfig, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
 import { MeshkitError } from './types.js';
 
 function concatChunks(chunks: Uint8Array[], totalLength: number): Uint8Array {
@@ -48,12 +49,17 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
   }
 
   return {
-    async upload(data: Uint8Array): Promise<string> {
-      const { cid } = await ipfs.add(data, { pin: false });
+    async upload(data: Uint8Array, options?: UploadOptions): Promise<string> {
+      // Encrypt before sending to the node if requested.
+      // The CID is computed by Kubo from the encrypted bytes.
+      const payload = options?.encrypt
+        ? await encrypt(data, options.encrypt)
+        : data;
+      const { cid } = await ipfs.add(payload, { pin: false });
       return cid.toString();
     },
 
-    async retrieve(cid: string): Promise<Uint8Array> {
+    async retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array> {
       const chunks: Uint8Array[] = [];
       let totalLength = 0;
 
@@ -62,7 +68,15 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
         totalLength += chunk.length;
       }
 
-      return concatChunks(chunks, totalLength);
+      const raw = concatChunks(chunks, totalLength);
+
+      // Decrypt transparently if a password was supplied and the payload looks
+      // like an EMSH encrypted blob.  If no password is given the raw bytes are
+      // returned as-is (allowing callers to inspect or forward the ciphertext).
+      if (options?.password && isEncryptedPayload(raw)) {
+        return decrypt(raw, options.password);
+      }
+      return raw;
     },
 
     async pin(cid: string): Promise<void> {
