@@ -9,7 +9,7 @@ import {
 import {
   pinSchema,
   retrieveSchema,
-  uploadSchema,
+  uploadShape,
   type PinInput,
   type RetrieveInput,
   type UploadInput,
@@ -21,15 +21,34 @@ export async function handleUpload(
   input: UploadInput,
 ): Promise<ReturnType<typeof textResult>> {
   const bytes = decodeUploadInput(input as RawUploadInput);
-  const cid = await ctx.meshkit.upload(bytes);
-  return textResult({ cid });
+
+  const uploadOptions = input.password
+    ? {
+        encrypt: {
+          password: input.password,
+          ...(input.pbkdf2Iterations !== undefined
+            ? { iterations: input.pbkdf2Iterations }
+            : {}),
+        },
+      }
+    : undefined;
+
+  const cid = await ctx.meshkit.upload(bytes, uploadOptions);
+  return textResult({
+    cid,
+    encrypted: uploadOptions !== undefined,
+  });
 }
 
 export async function handleRetrieve(
   ctx: MeshkitContext,
   input: RetrieveInput,
 ): Promise<ReturnType<typeof textResult>> {
-  const bytes = await ctx.meshkit.retrieve(input.cid);
+  const retrieveOptions = input.password
+    ? { password: input.password }
+    : undefined;
+
+  const bytes = await ctx.meshkit.retrieve(input.cid, retrieveOptions);
   const encoded = encodeRetrievedBytesSafe(bytes);
   return textResult({ cid: input.cid, ...encoded });
 }
@@ -55,8 +74,8 @@ export function registerStorageTools(
 ): void {
   server.tool(
     'ipfs_upload',
-    'Upload content to IPFS and return the CID',
-    uploadSchema,
+    'Upload content to IPFS and return the CID. Optionally encrypt with AES-256-GCM.',
+    uploadShape,
     async (input) => runTool(ctx, handleUpload, input),
   );
 

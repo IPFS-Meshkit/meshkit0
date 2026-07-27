@@ -3,6 +3,8 @@ export type {
   MeshkitConfig,
   MeshkitInitOptions,
   StoredObject,
+  UploadOptions,
+  RetrieveOptions,
   IpnsDuration,
   IpnsKey,
   IpnsKeyGenOptions,
@@ -21,8 +23,12 @@ export {
   extractCidFromPath,
   toIpfsPath,
   toIpnsPath,
+  encrypt,
+  decrypt,
+  isEncryptedPayload,
+  DEFAULT_ITERATIONS,
 } from '@ipfs-meshkit/core';
-export type { S3StorageConfig, FilOneConfig } from '@ipfs-meshkit/core';
+export type { EncryptOptions, S3StorageConfig, FilOneConfig } from '@ipfs-meshkit/core';
 
 export type {
   IPFSNodeHandle,
