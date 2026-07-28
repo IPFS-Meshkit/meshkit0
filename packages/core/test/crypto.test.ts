@@ -15,9 +15,9 @@ const PASSWORD = 'correct-horse-battery-staple';
 const PLAINTEXT = new TextEncoder().encode('Hello, IPFS-Meshkit encryption!');
 const EMPTY = new Uint8Array(0);
 
-/** Encrypt with default options and low iterations so tests run fast. */
+/** Encrypt with low-but-valid iterations so tests run fast without hitting the floor. */
 function fastEncrypt(data: Uint8Array, password = PASSWORD) {
-  return encrypt(data, { password, iterations: 1 });
+  return encrypt(data, { password, iterations: 1_000 });
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +132,12 @@ describe('encrypt', () => {
 
   it('throws MeshkitError for an empty password', async () => {
     await expect(encrypt(PLAINTEXT, { password: '' })).rejects.toBeInstanceOf(MeshkitError);
+  });
+
+  it('throws MeshkitError for iterations below minimum (< 1,000)', async () => {
+    await expect(
+      encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1 }),
+    ).rejects.toBeInstanceOf(MeshkitError);
   });
 
   it('throws MeshkitError for iterations = 0', async () => {
@@ -273,7 +279,17 @@ describe('decrypt', () => {
   });
 
   it('decrypting p1 with password of p2 fails gracefully', async () => {
-    const p1 = await encrypt(PLAINTEXT, { password: 'password-one', iterations: 1 });
+    const p1 = await encrypt(PLAINTEXT, { password: 'password-one', iterations: 1_000 });
     await expect(decrypt(p1, 'password-two')).rejects.toBeInstanceOf(MeshkitError);
+  });
+
+  it('throws MeshkitError when header iteration count exceeds the safe maximum (DoS guard)', async () => {
+    // Craft a valid-looking EMSH payload but with iterations = 0xFFFFFFFF in the header.
+    // decrypt() must reject it before ever invoking the KDF.
+    const payload = await fastEncrypt(PLAINTEXT);
+    const crafted = new Uint8Array(payload);
+    const view = new DataView(crafted.buffer);
+    view.setUint32(5, 0xffffffff, false /* big-endian, iterations field at offset 5 */);
+    await expect(decrypt(crafted, PASSWORD)).rejects.toBeInstanceOf(MeshkitError);
   });
 });

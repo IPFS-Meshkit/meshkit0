@@ -66,7 +66,7 @@ describe('createMeshkitClient', () => {
 
     const client = createMeshkitClient({ apiUrl: 'http://127.0.0.1:5001' });
     const cid = await client.upload(PLAINTEXT, {
-      encrypt: { password: PASSWORD, iterations: 1 },
+      encrypt: { password: PASSWORD, iterations: 1_000 },
     });
 
     expect(cid).toBe('QmEncrypted');
@@ -82,7 +82,7 @@ describe('createMeshkitClient', () => {
   it('two encrypted uploads of the same plaintext produce different blobs', async () => {
     ipfs.add.mockResolvedValue({ cid: { toString: () => 'QmAny' } });
     const client = createMeshkitClient({ apiUrl: 'http://127.0.0.1:5001' });
-    const opts = { encrypt: { password: PASSWORD, iterations: 1 } };
+    const opts = { encrypt: { password: PASSWORD, iterations: 1_000 } };
 
     await client.upload(PLAINTEXT, opts);
     await client.upload(PLAINTEXT, opts);
@@ -113,7 +113,7 @@ describe('createMeshkitClient', () => {
   it('retrieve without password returns raw encrypted bytes when content is encrypted', async () => {
     // Simulate: upload encrypted, then retrieve without password
     const { encrypt } = await import('../src/crypto.js');
-    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1 });
+    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1_000 });
 
     async function* chunks() { yield encrypted; }
     ipfs.cat.mockReturnValue(chunks());
@@ -131,7 +131,7 @@ describe('createMeshkitClient', () => {
 
   it('retrieve with correct password decrypts transparently', async () => {
     const { encrypt } = await import('../src/crypto.js');
-    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1 });
+    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1_000 });
 
     async function* chunks() { yield encrypted; }
     ipfs.cat.mockReturnValue(chunks());
@@ -144,7 +144,7 @@ describe('createMeshkitClient', () => {
 
   it('retrieve with wrong password throws MeshkitError', async () => {
     const { encrypt } = await import('../src/crypto.js');
-    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1 });
+    const encrypted = await encrypt(PLAINTEXT, { password: PASSWORD, iterations: 1_000 });
 
     async function* chunks() { yield encrypted; }
     ipfs.cat.mockReturnValue(chunks());

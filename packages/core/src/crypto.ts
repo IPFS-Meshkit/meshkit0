@@ -60,6 +60,20 @@ const MIN_PAYLOAD_LEN = HEADER_LEN + GCM_TAG_LEN; // 53
 /** Default PBKDF2 iteration count.  200k is the OWASP 2023 minimum for PBKDF2-SHA256. */
 export const DEFAULT_ITERATIONS = 200_000;
 
+/**
+ * Minimum iteration count accepted by encrypt().
+ * Values below this are almost certainly a typo (e.g. `1` instead of `1_000`)
+ * and would produce dangerously weak key derivation.
+ */
+const MIN_ENCRYPT_ITERATIONS = 1_000;
+
+/**
+ * Maximum iteration count accepted by decrypt() when reading from the payload header.
+ * A crafted EMSH blob with iterations = 0xFFFFFFFF (~4.3 billion) would hang a server
+ * for hours; this ceiling rejects such payloads before the KDF is ever invoked.
+ */
+const MAX_DECRYPT_ITERATIONS = 10_000_000;
+
 // ---------------------------------------------------------------------------
 // Public interface
 // ---------------------------------------------------------------------------
@@ -74,7 +88,7 @@ export interface EncryptOptions {
   /**
    * PBKDF2 iteration count.  Defaults to 200,000.
    * Higher values increase brute-force resistance at the cost of encrypt/decrypt time.
-   * Must be a positive integer ≤ 4,294,967,295 (uint32 max).
+   * Must be an integer ≥ 1,000 and ≤ 4,294,967,295 (uint32 max).
    */
   iterations?: number;
 }
@@ -124,11 +138,11 @@ async function deriveKey(
 function validateIterations(iterations: number): void {
   if (
     !Number.isInteger(iterations) ||
-    iterations < 1 ||
+    iterations < MIN_ENCRYPT_ITERATIONS ||
     iterations > 0xffffffff
   ) {
     throw new MeshkitError(
-      `iterations must be a positive integer ≤ 4,294,967,295, got: ${iterations}`,
+      `iterations must be an integer ≥ ${MIN_ENCRYPT_ITERATIONS} and ≤ 4,294,967,295, got: ${iterations}`,
     );
   }
 }
@@ -227,6 +241,15 @@ export async function decrypt(
   // byteOffset (e.g. if the caller passed a subarray view).
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const iterations = view.getUint32(OFF_ITERATIONS, false /* big-endian */);
+
+  // Reject payloads whose header declares an absurdly high iteration count.
+  // A crafted EMSH blob with iterations = 0xFFFFFFFF would hang the process
+  // for hours; this check fires before the KDF is ever invoked.
+  if (iterations > MAX_DECRYPT_ITERATIONS) {
+    throw new MeshkitError(
+      `Encrypted payload has an unsafe iteration count (${iterations}); max allowed for decryption is ${MAX_DECRYPT_ITERATIONS}`,
+    );
+  }
 
   // slice() creates owned copies — safe to hand to noble even if data is a view.
   const salt = data.slice(OFF_SALT, OFF_NONCE);

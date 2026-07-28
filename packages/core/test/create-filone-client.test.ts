@@ -89,7 +89,7 @@ describe('createS3Client / createFilOneClient', () => {
 
       const data = new TextEncoder().encode('secret invoice');
       const client = createFilOneClient(CONFIG);
-      await client.upload(data, { encrypt: { password: 'pass', iterations: 1 } });
+      await client.upload(data, { encrypt: { password: 'pass', iterations: 1_000 } });
 
       // The body sent to S3 must be an encrypted EMSH payload
       const req = fetchMock.mock.calls[0][0] as Request;
@@ -102,7 +102,7 @@ describe('createS3Client / createFilOneClient', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeResponse(200)));
       const client = createFilOneClient(CONFIG);
       const data = new TextEncoder().encode('same secret');
-      const opts = { encrypt: { password: 'pass', iterations: 1 } };
+      const opts = { encrypt: { password: 'pass', iterations: 1_000 } };
       const cid1 = await client.upload(data, opts);
       const cid2 = await client.upload(data, opts);
       // Different random salts → different ciphertexts → different CIDs
@@ -147,7 +147,7 @@ describe('createS3Client / createFilOneClient', () => {
     it('retrieve with correct password decrypts encrypted S3 content', async () => {
       const { encrypt } = await import('../src/crypto.js');
       const plaintext = new TextEncoder().encode('secret s3 payload');
-      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1 });
+      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1_000 });
 
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));
       const client = createFilOneClient(CONFIG);
@@ -158,7 +158,7 @@ describe('createS3Client / createFilOneClient', () => {
     it('retrieve without password returns raw encrypted bytes', async () => {
       const { encrypt } = await import('../src/crypto.js');
       const plaintext = new TextEncoder().encode('secret s3 payload');
-      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1 });
+      const encrypted = await encrypt(plaintext, { password: 'pass', iterations: 1_000 });
 
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));
       const client = createFilOneClient(CONFIG);
@@ -171,7 +171,7 @@ describe('createS3Client / createFilOneClient', () => {
       const { encrypt } = await import('../src/crypto.js');
       const encrypted = await encrypt(
         new TextEncoder().encode('secret'),
-        { password: 'correct', iterations: 1 },
+        { password: 'correct', iterations: 1_000 },
       );
 
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encrypted.buffer)));

@@ -1,4 +1,4 @@
-# IPFS Meshkit0
+# IPFS Meshkit
 
 **@ipfs-meshkit/meshkit** is a TypeScript SDK for decentralized storage with two backends and one unified interface:
 
@@ -6,6 +6,8 @@
 - **S3-compatible object storage** (fil.one, Lighthouse, Filebase, 4EVERLAND, …) — for browsers, Ionic/Capacitor, and mobile apps where no daemon is possible
 
 Both backends implement the same `MeshkitClient` interface (`upload`, `retrieve`, `pin`, `list`, `listPins`, …) so you can swap backends without changing application logic.
+
+**Built-in client-side encryption** — any upload can be transparently encrypted with AES-256-GCM before it leaves the device. The IPFS network and the storage provider only ever see the ciphertext.
 
 [![test](https://github.com/IPFS-Meshkit/meshkit0/actions/workflows/test.yml/badge.svg)](https://github.com/IPFS-Meshkit/meshkit0/actions/workflows/test.yml)
 [![npm version](https://img.shields.io/npm/v/@ipfs-meshkit/meshkit.svg)](https://www.npmjs.com/package/@ipfs-meshkit/meshkit)
@@ -95,6 +97,86 @@ const objects = await client.list();
 ```
 
 > **Store your CIDs.** There is no directory listing backed by IPFS. `list()` queries the S3 bucket directly. If you lose the CID and the bucket is empty, there is no way to rediscover the file from the IPFS network.
+
+---
+
+## Quick start — Encrypted storage
+
+Encryption works on **both backends** with a single option. The content is encrypted client-side before upload and decrypted client-side after retrieval — the IPFS network and storage provider never see the plaintext.
+
+```typescript
+import { init, isEncryptedPayload } from '@ipfs-meshkit/meshkit';
+
+const { meshkit } = await init({ localNode: true });
+const PASSWORD = 'correct-horse-battery-staple';
+
+// Encrypt on upload
+const data = new TextEncoder().encode('confidential manifest data');
+const cid = await meshkit.upload(data, {
+  encrypt: { password: PASSWORD },
+});
+
+// Retrieve + decrypt in one call
+const plaintext = await meshkit.retrieve(cid, { password: PASSWORD });
+console.log(new TextDecoder().decode(plaintext)); // confidential manifest data
+
+// Retrieve without password — you get the raw encrypted blob
+const raw = await meshkit.retrieve(cid);
+console.log(isEncryptedPayload(raw)); // true
+
+// Wrong password throws MeshkitError
+await meshkit.retrieve(cid, { password: 'wrong' }); // throws
+```
+
+The S3 path works identically:
+
+```typescript
+import { createFilOneClient } from '@ipfs-meshkit/meshkit';
+
+const client = createFilOneClient({ /* credentials */ });
+
+const cid = await client.upload(data, {
+  encrypt: { password: PASSWORD },
+});
+const plaintext = await client.retrieve(cid, { password: PASSWORD });
+```
+
+### Encryption details
+
+| Property | Value |
+|---|---|
+| Cipher | AES-256-GCM (authenticated encryption — detects tampering) |
+| Key derivation | PBKDF2-SHA256 |
+| Default iterations | 200,000 (OWASP 2023 minimum) |
+| Salt | 128-bit random, generated fresh per `upload()` call |
+| Nonce | 96-bit random, generated fresh per `upload()` call |
+| Wire format | `EMSH` magic + version + iteration count + salt + nonce + ciphertext + 128-bit GCM tag |
+
+Because salt and nonce are random per call, uploading the same plaintext twice produces two different CIDs — safe for content that should not be linkable across uploads.
+
+**Iteration count guards:**
+- `iterations` must be ≥ 1,000 on `encrypt()` — values below this are almost certainly a typo and produce dangerously weak key derivation.
+- `decrypt()` rejects any payload whose header declares more than 10,000,000 iterations — this blocks crafted payloads designed to hang a server by triggering a multi-hour KDF run.
+
+```typescript
+// Custom iteration count (higher = more brute-force resistant, slower)
+const cid = await meshkit.upload(data, {
+  encrypt: { password: PASSWORD, iterations: 600_000 },
+});
+```
+
+### Standalone encrypt / decrypt
+
+If you need to encrypt bytes outside of an upload/retrieve flow:
+
+```typescript
+import { encrypt, decrypt, isEncryptedPayload, DEFAULT_ITERATIONS } from '@ipfs-meshkit/meshkit';
+
+const payload = await encrypt(data, { password: PASSWORD });
+console.log(isEncryptedPayload(payload)); // true
+
+const recovered = await decrypt(payload, PASSWORD);
+```
 
 ---
 
@@ -344,6 +426,26 @@ const { init } = require('@ipfs-meshkit/meshkit');
 | `extractCidFromPath(path)` | Extract CID string from `/ipfs/<cid>` path |
 | `toIpfsPath(cid)` / `toIpnsPath(name)` | Normalize to `/ipfs/` or `/ipns/` path |
 | `MeshkitError` / `MeshkitNodeError` | Error classes |
+
+### Encryption
+
+| Export | Purpose |
+|---|---|
+| `encrypt(data, { password, iterations? })` | Encrypt bytes with AES-256-GCM / PBKDF2-SHA256; returns EMSH payload |
+| `decrypt(data, password)` | Decrypt an EMSH payload; throws `MeshkitError` on wrong password or tampering |
+| `isEncryptedPayload(data)` | Returns `true` if `data` starts with the EMSH magic bytes |
+| `DEFAULT_ITERATIONS` | `200_000` — OWASP 2023 minimum for PBKDF2-SHA256 |
+| `EncryptOptions` | Type: `{ password: string; iterations?: number }` (iterations ≥ 1,000) |
+
+Both `upload()` and `retrieve()` accept inline encryption options so you do not need to call `encrypt` / `decrypt` directly in most cases:
+
+```typescript
+// Upload option
+meshkit.upload(bytes, { encrypt: { password, iterations? } })
+
+// Retrieve option
+meshkit.retrieve(cid, { password })
+```
 
 TypeScript types are included — no `@types/` package needed:
 
