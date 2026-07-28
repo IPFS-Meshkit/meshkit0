@@ -141,22 +141,68 @@ const cid = await client.upload(data, {
 const plaintext = await client.retrieve(cid, { password: PASSWORD });
 ```
 
-### Encryption details
+### How encryption works
+
+**Upload path**
+
+```
+password + plaintext
+        │
+        ├── CSPRNG ──────────────────────► 128-bit salt  (fresh every call)
+        │                                  96-bit nonce  (fresh every call)
+        │
+        ├── PBKDF2-SHA256(password, salt, iterations)
+        │         └──────────────────────► 256-bit AES key
+        │
+        └── AES-256-GCM(key, nonce, plaintext)
+                  └──────────────────────► ciphertext + 128-bit auth tag
+                                                    │
+                                          packed as EMSH blob
+                                                    │
+                                          upload to IPFS / S3  ──► CID
+```
+
+**Retrieve path**
+
+```
+CID ──► fetch raw bytes from IPFS / S3
+              │
+              ├── isEncryptedPayload()? ──► no  ──► return as-is
+              │
+              └── yes: read iterations, salt, nonce from EMSH header
+                          │
+                          ├── PBKDF2-SHA256(password, salt, iterations)
+                          │         └──────────────────────► 256-bit AES key
+                          │
+                          └── AES-256-GCM decrypt + verify auth tag
+                                    │
+                                    ├── tag valid   ──► plaintext
+                                    └── tag invalid ──► MeshkitError (wrong password or tampered)
+```
+
+**EMSH wire format** — every encrypted payload starts with a 37-byte self-describing header:
+
+| Offset | Size | Field | Value |
+|--------|------|-------|-------|
+| 0 | 4 B | Magic | `EMSH` (`0x45 0x4D 0x53 0x48`) — identifies encrypted content |
+| 4 | 1 B | Version | `0x01` |
+| 5 | 4 B | Iterations | PBKDF2 iteration count, uint32 big-endian |
+| 9 | 16 B | Salt | Random, unique per `encrypt()` call |
+| 25 | 12 B | Nonce | Random, unique per `encrypt()` call |
+| 37 | n + 16 B | Ciphertext + Tag | AES-256-GCM output; last 16 bytes are the authentication tag |
+
+Because salt and nonce are random per call, uploading the same plaintext twice produces two different CIDs — content is not linkable across uploads.
+
+**Algorithm properties**
 
 | Property | Value |
 |---|---|
-| Cipher | AES-256-GCM (authenticated encryption — detects tampering) |
+| Cipher | AES-256-GCM — authenticated; any bit-flip in the ciphertext or header is detected |
 | Key derivation | PBKDF2-SHA256 |
-| Default iterations | 200,000 (OWASP 2023 minimum) |
-| Salt | 128-bit random, generated fresh per `upload()` call |
-| Nonce | 96-bit random, generated fresh per `upload()` call |
-| Wire format | `EMSH` magic + version + iteration count + salt + nonce + ciphertext + 128-bit GCM tag |
-
-Because salt and nonce are random per call, uploading the same plaintext twice produces two different CIDs — safe for content that should not be linkable across uploads.
-
-**Iteration count guards:**
-- `iterations` must be ≥ 1,000 on `encrypt()` — values below this are almost certainly a typo and produce dangerously weak key derivation.
-- `decrypt()` rejects any payload whose header declares more than 10,000,000 iterations — this blocks crafted payloads designed to hang a server by triggering a multi-hour KDF run.
+| Default iterations | 200,000 (OWASP 2023 minimum for PBKDF2-SHA256) |
+| Iteration floor | 1,000 — `encrypt()` rejects lower values (typo guard) |
+| Iteration ceiling | 10,000,000 — `decrypt()` rejects higher values in the header (DoS guard) |
+| Dependencies | `@noble/ciphers` + `@noble/hashes` — [Cure53-audited](https://cure53.de/pentest-report_noble-crypto.pdf) |
 
 ```typescript
 // Custom iteration count (higher = more brute-force resistant, slower)
