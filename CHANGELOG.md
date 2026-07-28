@@ -1,5 +1,79 @@
 # Changelog
 
+## 1.2.1 — 2026-07-28
+
+### Added
+
+- **Client-side encrypted storage** — both the Kubo and S3 backends now support transparent AES-256-GCM encryption. Data is encrypted locally before it leaves the device; the IPFS network and storage provider only ever see the ciphertext.
+
+  **How it works — upload path:**
+  1. Caller passes `{ encrypt: { password, iterations? } }` to `upload()`.
+  2. A fresh 128-bit random salt and a fresh 96-bit random nonce are generated using `globalThis.crypto.getRandomValues` (CSPRNG — works on Node.js ≥ 20, browsers, and React Native).
+  3. A 256-bit AES key is derived from the password + salt using **PBKDF2-SHA256** with the configured iteration count (default: 200,000 — the OWASP 2023 minimum). Because salt and iteration count are random/configurable per call, the same password + plaintext always produces a different key.
+  4. The plaintext is encrypted with **AES-256-GCM**. GCM appends a 128-bit authentication tag that covers both the ciphertext and the associated header fields, so any bit-level tampering is detected at decryption time.
+  5. The output is assembled as an **EMSH** (Encrypted MeSHkit) blob with a self-describing 37-byte header:
+
+     ```
+     ┌────────┬─────────┬────────────┬──────────┬──────────┬──────────────────────┐
+     │ MAGIC  │ VERSION │ ITERATIONS │  SALT    │  NONCE   │  CIPHERTEXT + TAG    │
+     │ 4 B    │ 1 B     │ 4 B uint32 │ 16 B     │ 12 B     │  n + 16 B            │
+     │ "EMSH" │ 0x01    │ big-endian │ random   │ random   │  AES-256-GCM output  │
+     └────────┴─────────┴────────────┴──────────┴──────────┴──────────────────────┘
+     ```
+
+  6. The EMSH blob is uploaded to IPFS (or the S3 bucket). Because salt and nonce are randomised per call, uploading the same plaintext twice yields two different CIDs — content is not linkable across uploads.
+
+  **How it works — retrieve path:**
+  1. Caller passes `{ password }` to `retrieve()`.
+  2. The raw bytes are fetched from IPFS / S3 by CID.
+  3. `isEncryptedPayload()` checks the 4-byte EMSH magic prefix and the version byte. If they match, decryption proceeds; otherwise the raw bytes are returned as-is (plain-content round-trips are unaffected).
+  4. The iteration count, salt, and nonce are read directly from the EMSH header — no out-of-band metadata is needed.
+  5. The AES-256 key is re-derived from the password + header salt + header iteration count via PBKDF2-SHA256.
+  6. AES-256-GCM decryption verifies the GCM authentication tag. Any wrong password or any ciphertext / header corruption causes decryption to throw a generic `MeshkitError` (`"Decryption failed: wrong password or corrupted data"`) — wrong-password and tampered-payload errors are intentionally indistinguishable to prevent oracle attacks.
+  7. The original plaintext bytes are returned to the caller.
+
+- **New exports:**
+  - `encrypt(data, { password, iterations? }): Promise<Uint8Array>` — standalone encrypt; returns an EMSH payload
+  - `decrypt(data, password): Promise<Uint8Array>` — standalone decrypt; throws `MeshkitError` on wrong password or tampering
+  - `isEncryptedPayload(data): boolean` — structural check (magic + version bytes only; never touches the password)
+  - `DEFAULT_ITERATIONS` — `200_000`; re-exported constant for callers who want to reference the default explicitly
+  - `EncryptOptions` — TypeScript type: `{ password: string; iterations?: number }`
+
+- **Encryption on `upload()` / `retrieve()`** — both `MeshkitClient` implementations (`createMeshkitClient` for Kubo and `createS3Client` / `createFilOneClient` for S3) now accept:
+  - `upload(data, { encrypt: { password, iterations? } })` — encrypts before upload
+  - `retrieve(cid, { password })` — decrypts after fetch; omitting `password` returns the raw EMSH bytes
+
+- **MCP server encryption tools** (`@ipfs-meshkit/mcp`) — `ipfs_upload` now accepts optional `password` and `pbkdf2Iterations` parameters; `ipfs_retrieve` now accepts optional `password`. AI agents can store and retrieve encrypted content without the plaintext ever reaching the IPFS network.
+
+- **Crypto dependencies** — `@noble/ciphers@2.2.0` (AES-256-GCM) and `@noble/hashes@2.2.0` (PBKDF2-SHA256 + SHA-256) added as runtime dependencies. Both are from the `@noble` suite and covered by the published [Cure53 security audit](https://cure53.de/pentest-report_noble-crypto.pdf).
+
+### Security
+
+- Resolved **7 CVEs** across transitive dependencies (0 remaining):
+  - `brace-expansion` ≤5.0.7 — DoS via unbounded expansion (HIGH, CVSS 7.5) — fixed by upgrading `vitest` + `@vitest/coverage-v8` to v4
+  - `brace-expansion` ≥2.0.0 <2.1.2 — DoS via exponential expansion (HIGH, CVSS 5.3) — bumped to 2.1.2
+  - `fast-uri` 3.0.0–3.1.3 — host confusion via backslash (HIGH, CVSS 7.5) — bumped to 3.1.4
+  - `postcss` ≤8.5.17 — path traversal in source map loading (HIGH, CVSS 7.5) — bumped to 8.5.23
+  - `shell-quote` ≤1.8.4 — quadratic-complexity DoS (HIGH, CVSS 7.5) — bumped to 1.10.0
+  - `@hono/node-server` <2.0.5 — path traversal via encoded backslash (MODERATE, CVSS 5.9) — bumped to 2.0.12
+  - `esbuild` 0.27.3–0.28.0 — arbitrary file read via dev server (LOW, CVSS 2.5) — resolved via `overrides`
+- Added **iteration count guards** to `crypto.ts`:
+  - `encrypt()` now rejects `iterations < 1_000` — catches accidental typos that would produce dangerously weak key derivation
+  - `decrypt()` now rejects payloads whose header declares `iterations > 10_000_000` — prevents a crafted EMSH blob from hanging a server with a multi-hour PBKDF2 run
+
+### Changed
+
+- `@vitest/coverage-v8` and `vitest` upgraded from v3 to v4.1.10
+- `zod` upgraded from 3.x to 4.4.3 in `@ipfs-meshkit/mcp` (`@modelcontextprotocol/sdk` supports `^3.25 || ^4.0`)
+- `@types/node` upgraded from `^25` to `^26.1.2` across all packages
+- `multiformats` floor bumped to `^14.0.5`
+- `@modelcontextprotocol/sdk` floor bumped to `^1.30.0`
+- `@ipfs-meshkit/meshkit` dependency in `@ipfs-meshkit/mcp` changed from pinned registry version `1.0.2` to workspace `^1.2.0`
+
+### Fixed
+
+- Integration test phase 1 passed `localNode: true, ...localNodeOptions` to `init()` which caused the daemon to start on the default port 5001 instead of the test port 15005; changed to `localNode: localNodeOptions` (object form) so the port is correctly forwarded to `startIPFSNode()`
+
 ## 1.2.0 — 2026-07-22
 
 ### Added

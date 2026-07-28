@@ -4,6 +4,14 @@
   "private": true,
   "description": "Local Kubo lifecycle for IPFS Meshkit (bundled into root @ipfs-meshkit/meshkit).",
   "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
     "clean": "rm -rf dist"
   },

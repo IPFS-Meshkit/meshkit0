@@ -5,10 +5,8 @@ MCP (Model Context Protocol) server for [IPFS Meshkit](https://github.com/IPFS-M
 ## Prerequisites
 
 - **Node.js 20+**
-- **`@ipfs-meshkit/meshkit` ≥ 1.0.2** (installed automatically as a dependency)
+- **`@ipfs-meshkit/meshkit` ≥ 1.2.1** (installed automatically as a dependency)
 - A running [Kubo](https://docs.ipfs.tech/install/) node with RPC API reachable (default: `http://127.0.0.1:5001`), **or** set `MESHKIT_LOCAL_NODE=true` to start/attach to Kubo automatically (requires `ipfs` on `PATH`)
-
-> **Publish order:** release `@ipfs-meshkit/meshkit@1.0.2` before `@ipfs-meshkit/mcp@1.0.0`. MCP uses `meshkit.listPins()`, added in meshkit 1.0.2.
 
 ## Quick start
 
@@ -92,8 +90,8 @@ Add to `claude_desktop_config.json`:
 
 | Tool | Description |
 |------|-------------|
-| `ipfs_upload` | Upload text or base64 content; returns CID |
-| `ipfs_retrieve` | Retrieve content by CID |
+| `ipfs_upload` | Upload text or base64 content; returns CID. Supports optional `password` and `pbkdf2Iterations` for client-side AES-256-GCM encryption before upload |
+| `ipfs_retrieve` | Retrieve content by CID. Pass `password` to decrypt if the content was uploaded encrypted |
 | `ipfs_pin` | Pin a CID on the node |
 | `ipfs_list_pins` | List all pinned CIDs on the primary node |
 | `ipfs_publish_name` | Publish an IPNS record |
@@ -109,16 +107,37 @@ Add to `claude_desktop_config.json`:
 { "content": "Hello, IPFS!" }
 ```
 
+**Upload text with encryption:**
+
+```json
+{
+  "content": "confidential manifest data",
+  "password": "correct-horse-battery-staple",
+  "pbkdf2Iterations": 200000
+}
+```
+
+The content is encrypted with AES-256-GCM (PBKDF2-SHA256 key derivation) before it leaves the local machine. The IPFS network and storage provider only ever see the ciphertext. `pbkdf2Iterations` defaults to 200,000 (OWASP 2023 minimum) and must be ≥ 1,000.
+
 **Upload binary:**
 
 ```json
 { "base64": "aGVsbG8=" }
 ```
 
-**Retrieve:**
+**Retrieve (no encryption):**
 
 ```json
 { "cid": "Qm..." }
+```
+
+**Retrieve and decrypt:**
+
+```json
+{
+  "cid": "Qm...",
+  "password": "correct-horse-battery-staple"
+}
 ```
 
 **Publish to IPNS:**
