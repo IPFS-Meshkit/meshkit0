@@ -8,6 +8,7 @@ import type {
   IpnsResolveOptions,
 } from './ipns/types.js';
 import type {
+  ListPinsOptions,
   Meshkit as MeshkitFacade,
   MeshkitClient,
   MeshkitInitOptions,
@@ -92,8 +93,12 @@ export class Meshkit implements MeshkitFacade {
     return withPrimary(this.clients, (client) => client.listKeys());
   }
 
-  listPins() {
-    return withPrimary(this.clients, (client) => client.listPins());
+  listPins(options?: ListPinsOptions) {
+    return withPrimary(this.clients, (client) => client.listPins(options));
+  }
+
+  countPins() {
+    return withPrimary(this.clients, (client) => client.countPins());
   }
 
   list(): Promise<StoredObject[]> {

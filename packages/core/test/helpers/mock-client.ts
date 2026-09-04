@@ -16,6 +16,7 @@ export function createMockClient(
     generateKey: async () => ({ name: 'self', id: 'QmSelf' }),
     listKeys: async () => [{ name: 'self', id: 'QmSelf' }],
     listPins: async () => [],
+    countPins: async () => ({ direct: 0, recursive: 0, indirect: 0, total: 0 }),
     healthCheck: async () => undefined,
     ...overrides,
   };

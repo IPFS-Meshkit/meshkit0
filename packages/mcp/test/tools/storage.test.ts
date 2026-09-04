@@ -5,6 +5,7 @@ import { uploadSchema } from '../../src/schemas/storage.js';
 import {
   handleListPins,
   handlePin,
+  handlePinCount,
   handleRetrieve,
   handleUpload,
 } from '../../src/tools/storage.js';
@@ -23,6 +24,9 @@ function createMockContext(): MeshkitContext {
       generateKey: vi.fn(),
       listKeys: vi.fn(),
       listPins: vi.fn().mockResolvedValue(['QmA', 'QmB']),
+      countPins: vi
+        .fn()
+        .mockResolvedValue({ direct: 1, recursive: 2, indirect: 3, total: 6 }),
     },
   };
 }
@@ -104,9 +108,35 @@ describe('storage tool handlers', () => {
 
     const result = await handleListPins(ctx);
 
-    expect(ctx.meshkit.listPins).toHaveBeenCalled();
+    expect(ctx.meshkit.listPins).toHaveBeenCalledWith({});
     expect(result.content[0]?.text).toContain('QmA');
     expect(result.content[0]?.text).toContain('QmB');
+    expect(result.content[0]?.text).toContain('"count": 2');
+  });
+
+  it('handleListPins passes limit and offset through to meshkit', async () => {
+    const ctx = createMockContext();
+    vi.mocked(ctx.meshkit.listPins).mockResolvedValue(['QmB']);
+
+    const result = await handleListPins(ctx, { limit: 1, offset: 1 });
+
+    expect(ctx.meshkit.listPins).toHaveBeenCalledWith({ limit: 1, offset: 1 });
+    expect(result.content[0]?.text).toContain('"limit": 1');
+    expect(result.content[0]?.text).toContain('"offset": 1');
+    expect(result.content[0]?.text).toContain('"count": 1');
+  });
+
+  it('handlePinCount returns counts by type without the pin list', async () => {
+    const ctx = createMockContext();
+
+    const result = await handlePinCount(ctx);
+
+    expect(ctx.meshkit.countPins).toHaveBeenCalled();
+    expect(result.content[0]?.text).toContain('"direct": 1');
+    expect(result.content[0]?.text).toContain('"recursive": 2');
+    expect(result.content[0]?.text).toContain('"indirect": 3');
+    expect(result.content[0]?.text).toContain('"total": 6');
+    expect(result.content[0]?.text).not.toContain('pins');
   });
 
   it('handleUpload surfaces MeshkitError messages', async () => {
