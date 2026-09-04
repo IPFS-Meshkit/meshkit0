@@ -10,7 +10,8 @@ import type {
   IpnsPublishOptions,
   IpnsResolveOptions,
 } from './ipns/types.js';
-import type { MeshkitClient, MeshkitConfig, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
+import { countPinsViaRpc } from './pin-count.js';
+import type { ListPinsOptions, MeshkitClient, MeshkitConfig, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
 import { MeshkitError } from './types.js';
 
 function concatChunks(chunks: Uint8Array[], totalLength: number): Uint8Array {
@@ -115,12 +116,25 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
       return keys.map((key) => ({ id: key.id, name: key.name }));
     },
 
-    async listPins(): Promise<string[]> {
-      const cids = new Set<string>();
+    async listPins(options?: ListPinsOptions): Promise<string[]> {
+      const cids: string[] = [];
+      const offset = options?.offset ?? 0;
+      let skipped = 0;
       for await (const { cid } of ipfs.pin.ls({ type: 'all' })) {
-        cids.add(cid.toString());
+        if (skipped < offset) {
+          skipped++;
+          continue;
+        }
+        cids.push(cid.toString());
+        if (options?.limit !== undefined && cids.length >= options.limit) {
+          break;
+        }
       }
-      return [...cids];
+      return cids;
+    },
+
+    async countPins() {
+      return countPinsViaRpc(config.apiUrl, config.headers);
     },
 
     list() {

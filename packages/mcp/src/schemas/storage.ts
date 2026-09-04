@@ -58,6 +58,26 @@ export const pinSchema = {
   cid: z.string().describe('IPFS CID to pin'),
 };
 
+export const listPinsShape = {
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Maximum number of pinned CIDs to return. Recommended on nodes with ' +
+        'large pinsets — the pinset is streamed and iteration stops early ' +
+        'instead of returning every pin.',
+    ),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Number of pins to skip before collecting results (default 0).'),
+};
+
 export type UploadInput = z.infer<typeof uploadSchema>;
 export type RetrieveInput = z.infer<z.ZodObject<typeof retrieveSchema>>;
 export type PinInput = z.infer<z.ZodObject<typeof pinSchema>>;
+export type ListPinsInput = z.infer<z.ZodObject<typeof listPinsShape>>;

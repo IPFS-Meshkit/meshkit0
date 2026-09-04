@@ -18,6 +18,7 @@ function createMockContext(): MeshkitContext {
       generateKey: vi.fn(),
       listKeys: vi.fn(),
       listPins: vi.fn(),
+      countPins: vi.fn(),
     },
   };
 }

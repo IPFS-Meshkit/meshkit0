@@ -7,9 +7,11 @@ import {
   type UploadInput as RawUploadInput,
 } from '../format.js';
 import {
+  listPinsShape,
   pinSchema,
   retrieveSchema,
   uploadShape,
+  type ListPinsInput,
   type PinInput,
   type RetrieveInput,
   type UploadInput,
@@ -63,9 +65,25 @@ export async function handlePin(
 
 export async function handleListPins(
   ctx: MeshkitContext,
+  input: ListPinsInput = {},
 ): Promise<ReturnType<typeof textResult>> {
-  const pins = await ctx.meshkit.listPins();
-  return textResult({ pins });
+  const pins = await ctx.meshkit.listPins({
+    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    ...(input.offset !== undefined ? { offset: input.offset } : {}),
+  });
+  return textResult({
+    count: pins.length,
+    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    ...(input.offset !== undefined ? { offset: input.offset } : {}),
+    pins,
+  });
+}
+
+export async function handlePinCount(
+  ctx: MeshkitContext,
+): Promise<ReturnType<typeof textResult>> {
+  const counts = await ctx.meshkit.countPins();
+  return textResult(counts);
 }
 
 export function registerStorageTools(
@@ -95,7 +113,17 @@ export function registerStorageTools(
 
   server.tool(
     'ipfs_list_pins',
-    'List all pinned CIDs on the primary node',
-    async () => runToolNoInput(ctx, handleListPins),
+    'List pinned CIDs on the primary node. Use limit/offset to page through ' +
+      'large pinsets — prefer ipfs_pin_count when you only need the number of pins.',
+    listPinsShape,
+    async (input: ListPinsInput) => runTool(ctx, handleListPins, input),
+  );
+
+  server.tool(
+    'ipfs_pin_count',
+    'Count pins by type (direct, recursive, indirect, total) on the primary ' +
+      'node. Streams the pinset and returns only counts — safe for nodes ' +
+      'with millions of pins.',
+    async () => runToolNoInput(ctx, handlePinCount),
   );
 }

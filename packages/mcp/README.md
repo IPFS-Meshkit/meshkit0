@@ -93,7 +93,8 @@ Add to `claude_desktop_config.json`:
 | `ipfs_upload` | Upload text or base64 content; returns CID. Supports optional `password` and `pbkdf2Iterations` for client-side AES-256-GCM encryption before upload |
 | `ipfs_retrieve` | Retrieve content by CID. Pass `password` to decrypt if the content was uploaded encrypted |
 | `ipfs_pin` | Pin a CID on the node |
-| `ipfs_list_pins` | List all pinned CIDs on the primary node |
+| `ipfs_list_pins` | List pinned CIDs on the primary node. Optional `limit`/`offset` page through large pinsets without draining the full stream |
+| `ipfs_pin_count` | Count pins by type (`direct`, `recursive`, `indirect`, `total`) on the primary node. Streams and returns only counts — safe for nodes with millions of pins |
 | `ipfs_publish_name` | Publish an IPNS record |
 | `ipfs_resolve` | Resolve an IPNS name and retrieve content |
 | `ipfs_generate_key` | Create a named IPNS signing key |
