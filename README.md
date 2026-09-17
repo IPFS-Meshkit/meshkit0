@@ -100,6 +100,63 @@ const objects = await client.list();
 
 ---
 
+## Optional PPT gated access (pay-per-op)
+
+By default Meshkit is **ungated**: `upload`, `retrieve`, and `pin` work with no blockchain step.
+
+Developers who want to monetize can opt in by passing `gatedAccess` when creating a client. Each gated op then transfers a developer-set amount of **Park Pro Token (PPT)** from the end-user wallet to the developer’s EOA or contract **before** talking to Kubo.
+
+| Choice | Behavior |
+|--------|----------|
+| Omit `gatedAccess` | Free ops (current default) |
+| Set `gatedAccess` | Pay-per-op PPT transfer → then IPFS |
+
+**What Meshkit does:** ERC-20 transfer of `feeAmount` PPT to `recipientAddress`.
+
+**What Meshkit does not do:** DEX swaps, exchange links, or converting PPT to USDC. Document where users buy PPT for your app; after you receive PPT, exchange it to USDC (or hold it) outside the SDK.
+
+### Networks
+
+| Preset | Chain ID | PPT token |
+|--------|----------|-----------|
+| `arbitrumSepolia` (default) | `421614` | `0x38c505EE3FDf02C0A041B08611aDB2F1d92DF410` |
+| `arbitrumOne` | `42161` | Pass `tokenAddress` when mainnet PPT is live |
+
+### Example
+
+```typescript
+import { createMeshkitClient, GatedAccessError } from '@ipfs-meshkit/meshkit';
+
+const client = createMeshkitClient({
+  apiUrl: 'http://127.0.0.1:5001',
+  gatedAccess: {
+    recipientAddress: '0xYourEOAOrContract...', // where PPT fees go
+    feeAmount: 10n ** 18n, // 1 PPT per op — you decide the price
+    network: 'arbitrumSepolia', // optional; this is the default
+    wallet: appWalletAdapter, // { address, getChainId, getTokenBalance, transferToken }
+  },
+});
+
+try {
+  const cid = await client.upload(bytes);
+} catch (err) {
+  if (err instanceof GatedAccessError) {
+    // err.feeAmount, err.balance, err.recipientAddress, err.code
+  }
+  throw err;
+}
+```
+
+The same `gatedAccess` option is accepted by `Meshkit.init` / `init()` (charged once per op before node failover).
+
+Wire `wallet` from MetaMask, WalletConnect, viem, or any adapter that implements `MeshkitGatedAccessWallet`. Meshkit never holds private keys.
+
+### Buying PPT (documentation)
+
+End users need PPT on the configured network (Arbitrum Sepolia for testnet) before gated ops succeed. List the exchange or DEX where they can buy PPT in your app docs. After fees land in your `recipientAddress`, you can swap PPT → USDC yourself — that flow is outside Meshkit.
+
+---
+
 ## Quick start — Encrypted storage
 
 Encryption works on **both backends** with a single option. The content is encrypted client-side before upload and decrypted client-side after retrieval — the IPFS network and storage provider never see the plaintext.
@@ -445,6 +502,8 @@ const { init } = require('@ipfs-meshkit/meshkit');
 | `setupGracefulShutdown` | Stop managed Kubo on Ctrl+C / SIGTERM |
 | `createMeshkitClient(config)` | Single-node Kubo RPC client (no failover) |
 | `startIPFSNode` / `stopIPFSNode` | Low-level daemon lifecycle control |
+| `gatedAccess` (on `init` / `createMeshkitClient`) | Optional pay-per-op PPT transfer to a developer address before upload/retrieve/pin |
+| `GatedAccessError` / `PPT_NETWORKS` / `assertGatedAccess` | Gated access errors, network presets, and assert helper |
 
 ### S3-compatible object storage
 

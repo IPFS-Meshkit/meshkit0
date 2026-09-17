@@ -10,6 +10,7 @@ import type {
   IpnsPublishOptions,
   IpnsResolveOptions,
 } from './ipns/types.js';
+import { assertGatedAccess } from './gated-access/assert.js';
 import { countPinsViaRpc } from './pin-count.js';
 import type { ListPinsOptions, MeshkitClient, MeshkitConfig, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
 import { MeshkitError } from './types.js';
@@ -51,6 +52,7 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
 
   return {
     async upload(data: Uint8Array, options?: UploadOptions): Promise<string> {
+      await assertGatedAccess(config.gatedAccess, 'upload');
       // Encrypt before sending to the node if requested.
       // The CID is computed by Kubo from the encrypted bytes.
       const payload = options?.encrypt
@@ -61,6 +63,7 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
     },
 
     async retrieve(cid: string, options?: RetrieveOptions): Promise<Uint8Array> {
+      await assertGatedAccess(config.gatedAccess, 'retrieve');
       const chunks: Uint8Array[] = [];
       let totalLength = 0;
 
@@ -81,6 +84,7 @@ export function createMeshkitClient(config: MeshkitConfig): MeshkitClient {
     },
 
     async pin(cid: string): Promise<void> {
+      await assertGatedAccess(config.gatedAccess, 'pin');
       await ipfs.pin.add(cid);
     },
 

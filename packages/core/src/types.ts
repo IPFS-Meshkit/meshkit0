@@ -6,6 +6,7 @@ import type {
   IpnsResolveOptions,
 } from './ipns/types.js';
 import type { EncryptOptions } from './crypto.js';
+import type { MeshkitGatedAccessConfig } from './gated-access/types.js';
 
 export type {
   IpnsDuration,
@@ -17,6 +18,14 @@ export type {
 } from './ipns/types.js';
 
 export type { EncryptOptions } from './crypto.js';
+
+export type {
+  GatedAccessOperation,
+  MeshkitGatedAccessConfig,
+  MeshkitGatedAccessWallet,
+  MeshkitPptNetwork,
+  ResolvedGatedAccess,
+} from './gated-access/types.js';
 
 export class MeshkitError extends Error {
   /** The individual errors collected from each node that was tried. */
@@ -80,6 +89,13 @@ export interface MeshkitConfig {
    * Optional request headers (e.g. API auth configured on the node).
    */
   headers?: Record<string, string>;
+
+  /**
+   * Optional pay-per-op PPT gated access.
+   * When set, each upload / retrieve / pin transfers `feeAmount` PPT to `recipientAddress`
+   * before talking to Kubo. Omit for free ungated ops.
+   */
+  gatedAccess?: MeshkitGatedAccessConfig;
 }
 
 export interface StoredObject {
@@ -202,6 +218,12 @@ export interface MeshkitInitOptions {
 
   /** Optional request headers sent to every node (e.g. API auth). */
   headers?: Record<string, string>;
+
+  /**
+   * Optional pay-per-op PPT gated access (asserted once per op before failover).
+   * Omit for free ungated ops.
+   */
+  gatedAccess?: MeshkitGatedAccessConfig;
 }
 
 export interface Meshkit {

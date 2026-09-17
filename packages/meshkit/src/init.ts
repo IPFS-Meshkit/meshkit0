@@ -62,6 +62,9 @@ export async function init(
   const meshkit = await CoreMeshkit.init({
     nodes,
     ...(options.headers !== undefined ? { headers: options.headers } : {}),
+    ...(options.gatedAccess !== undefined
+      ? { gatedAccess: options.gatedAccess }
+      : {}),
   });
 
   return localNode !== undefined ? { meshkit, localNode } : { meshkit };
