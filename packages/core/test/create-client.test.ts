@@ -304,4 +304,53 @@ describe('createMeshkitClient', () => {
 
     expect(ipfs.id).toHaveBeenCalledOnce();
   });
+
+  // ---------------------------------------------------------------------------
+  // gated access (pay-per-op PPT)
+  // ---------------------------------------------------------------------------
+
+  it('upload with gatedAccess transfers PPT before Kubo add', async () => {
+    ipfs.add.mockResolvedValue({ cid: { toString: () => 'QmPaid' } });
+    const transferToken = vi.fn(async () => '0xfee' as `0x${string}`);
+
+    const client = createMeshkitClient({
+      apiUrl: 'http://127.0.0.1:5001',
+      gatedAccess: {
+        recipientAddress: '0x1111111111111111111111111111111111111111',
+        feeAmount: 10n ** 18n,
+        wallet: {
+          address: '0x2222222222222222222222222222222222222222',
+          getChainId: async () => 421614,
+          getTokenBalance: async () => 10n ** 19n,
+          transferToken,
+        },
+      },
+    });
+
+    await expect(client.upload(new Uint8Array([1]))).resolves.toBe('QmPaid');
+    expect(transferToken).toHaveBeenCalledOnce();
+    expect(ipfs.add).toHaveBeenCalledOnce();
+  });
+
+  it('upload with gatedAccess does not call Kubo when PPT balance is low', async () => {
+    const client = createMeshkitClient({
+      apiUrl: 'http://127.0.0.1:5001',
+      gatedAccess: {
+        recipientAddress: '0x1111111111111111111111111111111111111111',
+        feeAmount: 10n ** 18n,
+        wallet: {
+          address: '0x2222222222222222222222222222222222222222',
+          getChainId: async () => 421614,
+          getTokenBalance: async () => 0n,
+          transferToken: async () => '0xdead' as `0x${string}`,
+        },
+      },
+    });
+
+    await expect(client.upload(new Uint8Array([1]))).rejects.toMatchObject({
+      name: 'GatedAccessError',
+      code: 'INSUFFICIENT_BALANCE',
+    });
+    expect(ipfs.add).not.toHaveBeenCalled();
+  });
 });

@@ -290,4 +290,39 @@ describe('Meshkit operations', () => {
     expect(countPins).toHaveBeenCalledOnce();
     expect(secondaryCountPins).not.toHaveBeenCalled();
   });
+
+  it('charges gatedAccess once even when upload fails over', async () => {
+    const transferToken = vi.fn(async () => '0xfee' as `0x${string}`);
+    const gatedAccess = {
+      recipientAddress: '0x1111111111111111111111111111111111111111' as const,
+      feeAmount: 10n ** 18n,
+      wallet: {
+        address: '0x2222222222222222222222222222222222222222' as const,
+        getChainId: async () => 421614,
+        getTokenBalance: async () => 10n ** 19n,
+        transferToken,
+      },
+    };
+
+    vi.spyOn(health, 'filterHealthy').mockResolvedValue({
+      clients: [
+        createMockClient({
+          upload: async () => {
+            throw new Error('fail');
+          },
+        }),
+        createMockClient({ upload: async () => 'QmOk' }),
+      ],
+      urls: ['http://a:5001', 'http://b:5001'],
+      failed: [],
+    });
+
+    const mk = await Meshkit.init({
+      nodes: ['http://a:5001', 'http://b:5001'],
+      gatedAccess,
+    });
+
+    await expect(mk.upload(new Uint8Array([1]))).resolves.toBe('QmOk');
+    expect(transferToken).toHaveBeenCalledOnce();
+  });
 });

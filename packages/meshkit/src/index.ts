@@ -13,6 +13,18 @@ export type {
   IpnsResolveOptions,
   PinCount,
   ListPinsOptions,
+  GatedAccessOperation,
+  MeshkitGatedAccessConfig,
+  MeshkitGatedAccessWallet,
+  MeshkitPptNetwork,
+  ResolvedGatedAccess,
+  AssertGatedAccessResult,
+  GatedAccessErrorCode,
+  GatedAccessErrorDetails,
+  PptNetworkPreset,
+  EncryptOptions,
+  S3StorageConfig,
+  FilOneConfig,
 } from '@ipfs-meshkit/core';
 export {
   MeshkitError,
@@ -29,8 +41,13 @@ export {
   decrypt,
   isEncryptedPayload,
   DEFAULT_ITERATIONS,
+  assertGatedAccess,
+  resolveGatedAccess,
+  resolveFee,
+  GatedAccessError,
+  PPT_NETWORKS,
+  DEFAULT_PPT_NETWORK,
 } from '@ipfs-meshkit/core';
-export type { EncryptOptions, S3StorageConfig, FilOneConfig } from '@ipfs-meshkit/core';
 
 export type {
   IPFSNodeHandle,
