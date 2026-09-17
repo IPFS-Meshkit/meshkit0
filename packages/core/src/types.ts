@@ -91,6 +91,33 @@ export interface StoredObject {
   uploadedAt: string;
 }
 
+/**
+ * Pin counts by type, as reported by Kubo `pin ls --type=all`.
+ * `indirect` pins are deduplicated child blocks of recursive pins.
+ */
+export interface PinCount {
+  /** Number of direct pins. */
+  direct: number;
+  /** Number of recursive pins (roots). */
+  recursive: number;
+  /** Number of indirect pins (children of recursive pins). */
+  indirect: number;
+  /** Sum of all pin types. */
+  total: number;
+}
+
+/**
+ * Pagination options for listing pins.
+ * When `limit` is set, implementations stream and stop early instead of
+ * materializing the full pinset — important on nodes with millions of pins.
+ */
+export interface ListPinsOptions {
+  /** Maximum number of pinned CIDs to return. */
+  limit?: number;
+  /** Number of pins to skip before collecting results. */
+  offset?: number;
+}
+
 export interface MeshkitClient {
   /**
    * Upload raw bytes to the connected IPFS node. Returns the CID string.
@@ -141,8 +168,18 @@ export interface MeshkitClient {
   /** List keys in the node's keystore (includes `"self"`). */
   listKeys(): Promise<IpnsKey[]>;
 
-  /** List all pinned CIDs on the connected node. */
-  listPins(): Promise<string[]>;
+  /**
+   * List pinned CIDs on the connected node.
+   * When `options.limit` is set the pinset is streamed and iteration stops
+   * early instead of materializing every pin.
+   */
+  listPins(options?: ListPinsOptions): Promise<string[]>;
+
+  /**
+   * Count pins by type on the connected node without returning the full list.
+   * Streams the pinset and tallies counts — safe for very large pinsets.
+   */
+  countPins(): Promise<PinCount>;
 
   /**
    * List all stored objects with metadata.
@@ -213,8 +250,11 @@ export interface Meshkit {
   /** List keys on the primary node's keystore. */
   listKeys(): Promise<IpnsKey[]>;
 
-  /** List all pinned CIDs on the primary node. */
-  listPins(): Promise<string[]>;
+  /** List pinned CIDs on the primary node (see `ListPinsOptions` for pagination). */
+  listPins(options?: ListPinsOptions): Promise<string[]>;
+
+  /** Count pins by type on the primary node without returning the full list. */
+  countPins(): Promise<PinCount>;
 
   /**
    * List all stored objects with metadata.

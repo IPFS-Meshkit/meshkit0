@@ -246,6 +246,56 @@ describe('createMeshkitClient', () => {
     expect(ipfs.pin.ls).toHaveBeenCalledWith({ type: 'all' });
   });
 
+  it('listPins stops early when a limit is given', async () => {
+    const yielded: string[] = [];
+    async function* pins() {
+      for (const cid of ['QmA', 'QmB', 'QmC', 'QmD']) {
+        yielded.push(cid);
+        yield { cid: { toString: () => cid }, type: 'recursive' };
+      }
+    }
+    ipfs.pin.ls.mockReturnValue(pins());
+
+    const client = createMeshkitClient({ apiUrl: 'http://127.0.0.1:5001' });
+    await expect(client.listPins({ limit: 2 })).resolves.toEqual(['QmA', 'QmB']);
+    // Iterator stopped after the limit instead of draining the pinset.
+    expect(yielded).toEqual(['QmA', 'QmB']);
+  });
+
+  it('listPins skips offset pins before collecting', async () => {
+    async function* pins() {
+      for (const cid of ['QmA', 'QmB', 'QmC']) {
+        yield { cid: { toString: () => cid }, type: 'recursive' };
+      }
+    }
+    ipfs.pin.ls.mockReturnValue(pins());
+
+    const client = createMeshkitClient({ apiUrl: 'http://127.0.0.1:5001' });
+    await expect(client.listPins({ offset: 1, limit: 1 })).resolves.toEqual([
+      'QmB',
+    ]);
+  });
+
+  it('countPins streams the pinset and returns counts by type', async () => {
+    const body = [
+      '{"Cid":"QmA","Type":"recursive"}',
+      '{"Cid":"QmB","Type":"direct"}',
+      '{"Cid":"QmC","Type":"indirect"}',
+    ].join('\n');
+    const fetchMock = vi.fn(async () => new Response(body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createMeshkitClient({ apiUrl: 'http://127.0.0.1:5001' });
+    await expect(client.countPins()).resolves.toEqual({
+      direct: 1,
+      recursive: 1,
+      indirect: 1,
+      total: 3,
+    });
+
+    vi.unstubAllGlobals();
+  });
+
   it('healthCheck calls ipfs.id()', async () => {
     ipfs.id.mockResolvedValue({});
 

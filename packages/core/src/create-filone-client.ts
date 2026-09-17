@@ -4,7 +4,7 @@ import { sha256 } from 'multiformats/hashes/sha2';
 import * as raw from 'multiformats/codecs/raw';
 import { decrypt, encrypt, isEncryptedPayload } from './crypto.js';
 import { MeshkitError } from './types.js';
-import type { MeshkitClient, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
+import type { ListPinsOptions, MeshkitClient, PinCount, RetrieveOptions, StoredObject, UploadOptions } from './types.js';
 
 export interface S3StorageConfig {
   accessKeyId: string;
@@ -183,9 +183,19 @@ export function createS3Client(config: S3StorageConfig): MeshkitClient {
 
     async pin(_cid: string): Promise<void> {},
 
-    async listPins(): Promise<string[]> {
+    async listPins(options?: ListPinsOptions): Promise<string[]> {
       const objects = await listAllObjects();
-      return objects.map((o) => o.key);
+      const keys = objects.map((o) => o.key);
+      const offset = options?.offset ?? 0;
+      return options?.limit === undefined
+        ? keys.slice(offset)
+        : keys.slice(offset, offset + options.limit);
+    },
+
+    async countPins(): Promise<PinCount> {
+      const objects = await listAllObjects();
+      const total = objects.length;
+      return { direct: 0, recursive: total, indirect: 0, total };
     },
 
     async list(): Promise<StoredObject[]> {

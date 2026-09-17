@@ -11,6 +11,8 @@ export type {
   IpnsPublishOptions,
   IpnsPublishResult,
   IpnsResolveOptions,
+  PinCount,
+  ListPinsOptions,
 } from '@ipfs-meshkit/core';
 export {
   MeshkitError,

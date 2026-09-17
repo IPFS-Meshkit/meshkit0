@@ -245,4 +245,49 @@ describe('Meshkit operations', () => {
     expect(listPins).toHaveBeenCalledOnce();
     expect(secondaryListPins).not.toHaveBeenCalled();
   });
+
+  it('listPins passes pagination options to the primary client', async () => {
+    const listPins = vi.fn(async () => ['QmB']);
+
+    vi.spyOn(health, 'filterHealthy').mockResolvedValue({
+      clients: [createMockClient({ listPins })],
+      urls: ['http://primary:5001'],
+      failed: [],
+    });
+
+    const mk = await Meshkit.init({ nodes: ['http://primary:5001'] });
+
+    await expect(mk.listPins({ limit: 1, offset: 1 })).resolves.toEqual(['QmB']);
+    expect(listPins).toHaveBeenCalledWith({ limit: 1, offset: 1 });
+  });
+
+  it('countPins uses primary node only', async () => {
+    const countPins = vi.fn(
+      async () => ({ direct: 0, recursive: 2, indirect: 1, total: 3 }),
+    );
+    const secondaryCountPins = vi.fn();
+
+    vi.spyOn(health, 'filterHealthy').mockResolvedValue({
+      clients: [
+        createMockClient({ countPins }),
+        createMockClient({ countPins: secondaryCountPins }),
+      ],
+      urls: ['http://primary:5001', 'http://secondary:5001'],
+      failed: [],
+    });
+
+    const mk = await Meshkit.init({
+      nodes: ['http://primary:5001', 'http://secondary:5001'],
+    });
+
+    await expect(mk.countPins()).resolves.toEqual({
+      direct: 0,
+      recursive: 2,
+      indirect: 1,
+      total: 3,
+    });
+
+    expect(countPins).toHaveBeenCalledOnce();
+    expect(secondaryCountPins).not.toHaveBeenCalled();
+  });
 });

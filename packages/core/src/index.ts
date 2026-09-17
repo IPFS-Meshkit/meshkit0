@@ -11,8 +11,11 @@ export type {
   IpnsPublishOptions,
   IpnsPublishResult,
   IpnsResolveOptions,
+  PinCount,
+  ListPinsOptions,
 } from './types.js';
 export { MeshkitError } from './types.js';
+export { countPinsViaRpc, applyPinLsLine } from './pin-count.js';
 
 export { Meshkit } from './meshkit.js';
 
