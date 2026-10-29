@@ -49,6 +49,7 @@
     "test:unit": "vitest run --project unit",
     "test:unit:watch": "vitest --project unit",
     "test:unit:coverage": "vitest run --project unit --coverage",
+    "test:dist": "npm run build && vitest run --project dist",
     "test:integration": "npm run build && vitest run --project integration",
     "test:all": "npm run build && vitest run",
     "test:ci": "npm run test:unit:coverage"
@@ -96,13 +97,44 @@
     "multiformats": "^14.0.5"
   },
   "devDependencies": {
+    "@helia/ipns": "^10.2.2",
+    "@helia/unixfs": "^8.0.9",
+    "@libp2p/crypto": "^5.2.0",
+    "@libp2p/peer-id": "^6.0.0",
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.10",
+    "blockstore-core": "^7.0.1",
+    "datastore-core": "^12.0.1",
+    "helia": "^7.1.16",
     "tsup": "^8.5.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "overrides": {
     "esbuild": ">=0.28.1"
+  },
+  "peerDependencies": {
+    "@helia/ipns": "^10.0.0",
+    "@helia/unixfs": "^8.0.0",
+    "@libp2p/crypto": "^5.2.0",
+    "@libp2p/peer-id": "^6.0.0",
+    "helia": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "helia": {
+      "optional": true
+    },
+    "@helia/unixfs": {
+      "optional": true
+    },
+    "@helia/ipns": {
+      "optional": true
+    },
+    "@libp2p/crypto": {
+      "optional": true
+    },
+    "@libp2p/peer-id": {
+      "optional": true
+    }
   }
 }

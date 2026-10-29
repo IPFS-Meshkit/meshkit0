@@ -22,6 +22,20 @@ const sharedDts = {
   },
 };
 
+const external = [
+  'kubo-rpc-client',
+  'aws4fetch',
+  'multiformats',
+  '@noble/ciphers',
+  '@noble/hashes',
+  // Optional peer deps of createHeliaClient(), imported lazily.
+  'helia',
+  '@helia/unixfs',
+  '@helia/ipns',
+  '@libp2p/crypto',
+  '@libp2p/peer-id',
+];
+
 export default defineConfig([
   // Node.js build — full surface including @ipfs-meshkit/node (child_process, path).
   {
@@ -36,7 +50,7 @@ export default defineConfig([
     },
     dts: sharedDts,
     noExternal: [/^@ipfs-meshkit\//],
-    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats', '@noble/ciphers', '@noble/hashes'],
+    external: [...external],
   },
   // Browser build — only @ipfs-meshkit/core; no Node.js built-ins.
   {
@@ -51,6 +65,6 @@ export default defineConfig([
     },
     dts: sharedDts,
     noExternal: [/^@ipfs-meshkit\//],
-    external: ['kubo-rpc-client', 'aws4fetch', 'multiformats', '@noble/ciphers', '@noble/hashes'],
+    external: [...external],
   },
 ]);

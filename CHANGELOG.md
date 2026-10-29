@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`createHeliaClient(helia, { offline? })`** — a `MeshkitClient` backed by an in-process Helia node (no Kubo daemon). Exported from both the Node and browser entries (tested on Node only). Targets **Helia 7** (`helia@^7`, `@helia/unixfs@^8`, `@helia/ipns@^10`), which uses the same `multiformats@^14` as Meshkit — no version pin or dedupe workaround is needed. Requires the optional peer dependencies `helia`, `@helia/unixfs`, `@helia/ipns`, `@libp2p/crypto` and `@libp2p/peer-id`; they are imported lazily, so Kubo/S3-only users are unaffected.
+  - `countPins` counts pinned roots only (a multi-block upload is one pin); `indirect` is always `0`.
+  - `list` returns every pinned root as `{ cid, size, uploadedAt }`, like the S3 client. `uploadedAt` is recorded in pin metadata when `pin()` runs; roots pinned elsewhere report the Unix epoch.
+  - Helia 7 does not start itself and creates libp2p on `start()`: call `await helia.start()` before IPNS/key calls (other calls and `healthCheck` work on any node). `healthCheck` checks `helia.status`.
+  - `resolveName` returns the newest record from `@helia/ipns` 10's async-iterable `resolve`.
+  - `generateKey` generates an Ed25519 (or RSA) key and imports it into the libp2p keychain (`helia.libp2p.services.keychain`). IPNS names are the key's PeerID (`12D3Koo…`), not the keychain's `KeyInfo.id`.
+  - `resolveName` looks the name up as a keychain label and resolves with its public key; otherwise it treats the input as an IPNS name.
+  - `retrieve`, `pin` and `publishName` accept a CID object from the caller's own `multiformats@14` as well as a string.
+  - `offline: true` skips the DHT for IPNS and disables network block fetches.
+- `encrypt`, `decrypt`, `isEncryptedPayload`, `DEFAULT_ITERATIONS` and the `EncryptOptions` type are now also exported from the **browser** entry (`index.browser`). They were already exported from the Node entry.
+- `npm run test:dist` builds and runs `tests/dist`, which imports the built ESM and CJS bundles and checks the crypto exports and `createHeliaClient`.
+
+### Not supported / skipped
+
+- Online IPNS publish through Helia (the DHT / delegated routers) is not covered by tests: it needs internet access and took ~44s against the public network. Offline publish/resolve is tested.
+
 ## 1.2.1 — 2026-07-28
 
 ### Added
