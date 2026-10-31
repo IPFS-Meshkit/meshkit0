@@ -103,6 +103,16 @@ export async function startIPFSNode(
 
   const child = spawnKuboDaemon(ipfsBinary, { repo });
 
+  // If the host process exits for any reason (crash, process.exit), stop the
+  // daemon spawned so it isn't left running as an orphan.
+  const killOnExit = () => {
+    child.kill();
+  };
+  process.once('exit', killOnExit);
+  child.once('exit', () => {
+    process.removeListener('exit', killOnExit);
+  });
+
   let startupError: Error | undefined;
 
   child.stderr?.on('data', (chunk: Buffer) => {
