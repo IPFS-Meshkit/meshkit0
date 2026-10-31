@@ -157,6 +157,58 @@ describe('startIPFSNode', () => {
   });
 });
 
+describe('startIPFSNode exit cleanup', () => {
+  beforeEach(() => {
+    isKuboHealthy.mockReset();
+    waitForKubo.mockReset();
+    ensureRepoConfigured.mockReset();
+    spawn.mockReset();
+  });
+
+  function newExitListeners(before: Function[]): Function[] {
+    return process.listeners('exit').filter((l) => !before.includes(l));
+  }
+
+  it('kills a managed daemon when the host process exits', async () => {
+    isKuboHealthy.mockResolvedValue(false);
+    waitForKubo.mockResolvedValue(undefined);
+    ensureRepoConfigured.mockResolvedValue(undefined);
+    const child = mockChildProcess();
+    mockManagedNodeSpawn(child);
+    const before = process.listeners('exit');
+
+    await startIPFSNode({ repo: '/tmp/meshkit-exit-test', port: 15_096, gatewayPort: 18_096 });
+
+    const added = newExitListeners(before);
+    expect(added).toHaveLength(1);
+    added[0]!(1);
+    expect(child.kill).toHaveBeenCalled();
+  });
+
+  it('removes the exit hook once the daemon has exited', async () => {
+    isKuboHealthy.mockResolvedValue(false);
+    waitForKubo.mockResolvedValue(undefined);
+    ensureRepoConfigured.mockResolvedValue(undefined);
+    const child = mockChildProcess();
+    mockManagedNodeSpawn(child);
+    const before = process.listeners('exit');
+
+    await startIPFSNode({ repo: '/tmp/meshkit-exit-test-2', port: 15_095, gatewayPort: 18_095 });
+    child.emit('exit', 0, null);
+
+    expect(newExitListeners(before)).toHaveLength(0);
+  });
+
+  it('does not add an exit hook when attaching to an existing daemon', async () => {
+    isKuboHealthy.mockResolvedValue(true);
+    const before = process.listeners('exit');
+
+    await startIPFSNode({ port: 5001 });
+
+    expect(newExitListeners(before)).toHaveLength(0);
+  });
+});
+
 describe('stopIPFSNode', () => {
   it('delegates to handle.stop()', async () => {
     const stop = vi.fn(async () => undefined);
