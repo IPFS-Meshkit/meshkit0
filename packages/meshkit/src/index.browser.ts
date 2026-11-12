@@ -11,6 +11,17 @@ export type {
   IpnsPublishOptions,
   IpnsPublishResult,
   IpnsResolveOptions,
+  GatedAccessOperation,
+  MeshkitGatedAccessConfig,
+  MeshkitGatedAccessWallet,
+  MeshkitPptNetwork,
+  ResolvedGatedAccess,
+  AssertGatedAccessResult,
+  GatedAccessErrorCode,
+  GatedAccessErrorDetails,
+  PptNetworkPreset,
+  S3StorageConfig,
+  FilOneConfig,
 } from '@ipfs-meshkit/core';
 export {
   MeshkitError,
@@ -23,5 +34,10 @@ export {
   extractCidFromPath,
   toIpfsPath,
   toIpnsPath,
+  assertGatedAccess,
+  resolveGatedAccess,
+  resolveFee,
+  GatedAccessError,
+  PPT_NETWORKS,
+  DEFAULT_PPT_NETWORK,
 } from '@ipfs-meshkit/core';
-export type { S3StorageConfig, FilOneConfig } from '@ipfs-meshkit/core';

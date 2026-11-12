@@ -13,6 +13,11 @@ export type {
   IpnsResolveOptions,
   PinCount,
   ListPinsOptions,
+  GatedAccessOperation,
+  MeshkitGatedAccessConfig,
+  MeshkitGatedAccessWallet,
+  MeshkitPptNetwork,
+  ResolvedGatedAccess,
 } from './types.js';
 export { MeshkitError } from './types.js';
 export { countPinsViaRpc, applyPinLsLine } from './pin-count.js';
@@ -28,3 +33,18 @@ export { extractCidFromPath, toIpfsPath, toIpnsPath } from './ipns/paths.js';
 
 export { encrypt, decrypt, isEncryptedPayload, DEFAULT_ITERATIONS } from './crypto.js';
 export type { EncryptOptions } from './crypto.js';
+
+export {
+  assertGatedAccess,
+  resolveGatedAccess,
+  resolveFee,
+  GatedAccessError,
+  PPT_NETWORKS,
+  DEFAULT_PPT_NETWORK,
+} from './gated-access/index.js';
+export type {
+  AssertGatedAccessResult,
+  GatedAccessErrorCode,
+  GatedAccessErrorDetails,
+  PptNetworkPreset,
+} from './gated-access/index.js';

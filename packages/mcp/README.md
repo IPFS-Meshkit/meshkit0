@@ -31,6 +31,8 @@ Set environment variables in your MCP client config:
 | `MESHKIT_HEADERS` | — | Optional JSON object for RPC auth headers |
 | `MESHKIT_LOCAL_NODE` | `false` | Start or attach to a local Kubo daemon (`true`/`1`/`yes`) |
 
+> **PPT gated access:** Pay-per-op PPT transfers are supported in the `@ipfs-meshkit/meshkit` SDK via `gatedAccess` (requires an end-user wallet). The MCP stdio server does not collect PPT fees — use the SDK in your app when you need gated monetization.
+
 ### Cursor
 
 Add to your MCP settings (`mcp.json`):
